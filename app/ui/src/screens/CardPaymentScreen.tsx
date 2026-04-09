@@ -1,6 +1,7 @@
 import { Button, Callout, Spinner } from "@blueprintjs/core";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cardSale, setTransactionStep, type ApiFail, type ApiResult } from "@/services/api";
+import { im30MessageFromApiFail, im30MessageFromPayload } from "@/lib/im30ErrorCatalog";
+import { cardSale, setTransactionStep, type ApiResult } from "@/services/api";
 import { useKioskStore } from "@/store/kioskStore";
 import "./CardPaymentScreen.css";
 
@@ -12,58 +13,9 @@ let cardSaleGeneration = 0;
  */
 const cardSaleInFlight = new Map<string, Promise<ApiResult<Record<string, unknown>>>>();
 
-/** Códigos `errorCode` en string devueltos por EMVBridge (además de los numéricos MiTec / PIN pad). */
-const BRIDGE_ERROR_UI: Record<string, string> = {
-  EMV_START_FAILED:
-    "No se pudo iniciar el cobro en la terminal. Comprueba que la TPV esté encendida, conectada y lista; luego intenta de nuevo.",
-  EMV_BUSY: "La terminal está ocupada. Espera unos segundos e intenta de nuevo.",
-};
-
-function mapCardError(d: Record<string, unknown>): string {
-  const mit = d.mitIm30;
-  if (typeof mit === "string" && mit.trim()) return mit;
-
-  const ecRaw = d.errorCode ?? d.error_code;
-  const ec = ecRaw != null ? String(ecRaw).trim() : "";
-  if (ec === "10") return "Operación cancelada en la terminal.";
-  if (ec === "11") return "Tiempo agotado en la terminal. Puedes intentar de nuevo.";
-  const bridgeMsg = ec ? BRIDGE_ERROR_UI[ec.toUpperCase()] : undefined;
-  if (bridgeMsg) return bridgeMsg;
-  if (ec) return `Código: ${ec}`;
-
-  const resp = typeof d.respuesta === "string" ? d.respuesta.toLowerCase() : "";
-  if (resp === "denied") return "Pago rechazado por el banco.";
-  if (resp === "cancelled" || resp === "canceled") return "Operación cancelada.";
-  if (resp === "timeout") return "Tiempo agotado. Puedes intentar de nuevo.";
-
-  return "No se pudo completar el pago.";
-}
-
 function isApproved(d: Record<string, unknown>): boolean {
   const r = d.respuesta;
   return typeof r === "string" && r.toLowerCase() === "approved";
-}
-
-function messageFromApiFail(r: ApiFail): string {
-  const e = r.error;
-  if (typeof e === "string" && e.trim()) return e;
-  if (e && typeof e === "object") {
-    const o = e as Record<string, unknown>;
-    if (typeof o.mitIm30 === "string" && o.mitIm30.trim()) return o.mitIm30;
-    const fromFields = mapCardError(o);
-    if (fromFields !== "No se pudo completar el pago.") return fromFields;
-  }
-  const det = r.details;
-  if (det && typeof det === "object" && !Array.isArray(det)) {
-    const nested = (det as { data?: unknown }).data;
-    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-      const m = mapCardError(nested as Record<string, unknown>);
-      if (m !== "No se pudo completar el pago.") return m;
-    }
-    const m = mapCardError(det as Record<string, unknown>);
-    if (m !== "No se pudo completar el pago.") return m;
-  }
-  return "Error de terminal";
 }
 
 interface Props {
@@ -85,7 +37,7 @@ export function CardPaymentScreen({ onApproved, onCancel }: Props) {
     if (gen !== cardSaleGeneration) return;
 
     if (!r.success) {
-      setErr(messageFromApiFail(r));
+      setErr(im30MessageFromApiFail(r));
       setBusy(false);
       return;
     }
@@ -103,7 +55,7 @@ export function CardPaymentScreen({ onApproved, onCancel }: Props) {
       return;
     }
 
-    setErr(mapCardError(d));
+    setErr(im30MessageFromPayload(d));
     setBusy(false);
   }, []);
 

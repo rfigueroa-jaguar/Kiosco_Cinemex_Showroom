@@ -6,6 +6,10 @@ Certificado Root.cer: debe instalarse en el kiosco en
 Autoridades de certificación raíz de confianza → Importar Root.cer
 (archivo generado en la instalación del CPI Payment Service).
 
+Además, en .env puede definirse CPI_CA_BUNDLE: ruta absoluta o relativa (p. ej. certificado_cpi.crt
+en la raíz del repo) a un PEM con la CA que firma el HTTPS del CPI; httpx usa ese archivo para TLS
+(independiente del almacén de Windows).
+
 Si el sujeto del certificado no contiene la subcadena configurada en
 `cpi_root_cert_subject_hint` (prod.yaml), el servicio se marca como no disponible
 y se registra WARNING en logs — no se realizan llamadas HTTPS que fallen por SSL
@@ -16,17 +20,54 @@ from __future__ import annotations
 
 import base64
 import logging
+import ssl
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
 import httpx
 
 from core.state import app_state
-from settings import Settings
+from settings import APP_DIR, Settings
+
+
+def resolve_cpi_ca_bundle_path(raw: str) -> Path | None:
+    """
+    Localiza el PEM de la CA del CPI: ruta absoluta, o relativa al cwd, a app/ o a la raíz del repo
+    (directorio padre de app/, donde suele estar certificado_cpi.crt).
+    """
+    raw = raw.strip()
+    if not raw:
+        return None
+    p = Path(raw)
+    if p.is_file():
+        return p.resolve()
+    for base in (Path.cwd(), APP_DIR, APP_DIR.parent):
+        cand = (base / raw).resolve()
+        if cand.is_file():
+            return cand
+    return None
 
 _logger = logging.getLogger("kiosco.cpi")
+
+
+def ssl_context_for_cpi_ca(ca_file: Path) -> ssl.SSLContext:
+    """
+    CA personalizada con verificación TLS activa, pero sin VERIFY_X509_STRICT.
+
+    OpenSSL 3 (Python 3.12+) rechaza cadenas típicas del CPI con
+    «Missing Authority Key Identifier» si queda activo el modo estricto.
+    """
+    ctx = ssl.create_default_context(cafile=str(ca_file))
+    strict = getattr(ssl, "VERIFY_X509_STRICT", 0)
+    if strict and (ctx.verify_flags & strict):
+        ctx.verify_flags &= ~strict
+        _logger.info(
+            "CPI: TLS con CA en archivo — VERIFY_X509_STRICT desactivado (compatibilidad OpenSSL 3 / cert. CPI)."
+        )
+    return ctx
 
 MSG_CPI_NO_CREDS = (
     "Pago en efectivo no disponible: faltan credenciales del servicio CPI en la configuración del equipo."
@@ -40,6 +81,9 @@ MSG_CPI_RETRY_EXHAUSTED = (
     "Pago en efectivo no disponible: el servicio no respondió tras varios intentos. Revise red, CPI y credenciales."
 )
 MSG_CPI_HARDWARE_ERROR = "Pago en efectivo no disponible: el reciclador CPI reportó un estado de error."
+MSG_CPI_CA_BUNDLE = (
+    "Pago en efectivo no disponible: CPI_CA_BUNDLE no apunta a un archivo existente o no es legible."
+)
 
 
 def verify_cpi_root_cert_trusted(subject_hint: str) -> tuple[bool, str]:
@@ -110,13 +154,27 @@ class CPIService:
         app_state["services"]["cpi"] = entry
 
     async def startup_check(self) -> None:
-        """Antes de cualquier llamada HTTPS: verificar confianza del Root.cer (PRD + requisito usuario)."""
+        """Antes de cualquier llamada HTTPS: Root.cer en Windows, o CA en archivo (CPI_CA_BUNDLE), o modo dev."""
+        ca_raw = (self._settings.cpi_ca_bundle or "").strip()
+        ca_path = resolve_cpi_ca_bundle_path(ca_raw) if ca_raw else None
+        if ca_raw and ca_path is None:
+            _logger.warning("CPI_CA_BUNDLE no es un archivo válido: %s", ca_raw)
+            self._set_cpi_state(False, "ca_bundle_invalid", MSG_CPI_CA_BUNDLE)
+            return
+
         if self._settings.cpi_allow_without_root_verification:
             _logger.warning(
                 "CPI: CPI_ALLOW_WITHOUT_ROOT_VERIFICATION activo — no se verificó Root.cer en el almacén (solo desarrollo)."
             )
             self._ssl_ok = True
             self._ssl_message = "Verificación omitida por configuración (dev)"
+        elif ca_path is not None:
+            _logger.info(
+                "CPI: CPI_CA_BUNDLE — TLS con %s; no se exige Root.cer en el almacén Windows para arrancar.",
+                ca_path,
+            )
+            self._ssl_ok = True
+            self._ssl_message = str(ca_path)
         else:
             ok, msg = verify_cpi_root_cert_trusted(self._subject_hint)
             self._ssl_ok = ok
@@ -136,7 +194,13 @@ class CPIService:
             self._set_cpi_state(False, "no_credentials", MSG_CPI_NO_CREDS)
             return
 
-        self._client = httpx.AsyncClient(base_url=self._base, verify=True, timeout=30.0)
+        if ca_path is not None:
+            _logger.info("CPI: verificación TLS con CA en %s", ca_path)
+            verify_arg: bool | ssl.SSLContext = ssl_context_for_cpi_ca(ca_path)
+        else:
+            verify_arg = True
+
+        self._client = httpx.AsyncClient(base_url=self._base, verify=verify_arg, timeout=30.0)
         try:
             st = await self.get_system_status_raw()
             self._watchdog_failures = 0

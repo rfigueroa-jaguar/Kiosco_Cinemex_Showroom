@@ -214,8 +214,10 @@ Algunas respuestas de `/emv/sale` incluyen `errorCode` como texto (no solo códi
 
 | `errorCode` | Causa típica | Mensaje en UI del kiosco |
 |---|---|---|
-| `EMV_START_FAILED` | El SDK / Bridge no pudo iniciar la operación en la TPV (USB, estado del lector, sesión EMV, etc.) | "No se pudo iniciar el cobro en la terminal. Comprueba que la TPV esté encendida, conectada y lista; luego intenta de nuevo." |
+| `EMV_START_FAILED` | El Bridge a veces devuelve este código también tras **cancelación en TPV** o **timeout**, aunque el fallo real sea otro. | Si en la misma respuesta (o en objetos anidados como `data` / `details`) aparece el código PIN pad **`10`** o **`11`**, el kiosco **prioriza** los mensajes de cancelación o timeout del catálogo PIN pad. Solo si **no** hay `10`/`11` detectable se muestra el texto genérico de arranque en TPV. |
 | `EMV_BUSY` | Terminal ocupada (equivalente lógico al HTTP 409 en algunos flujos) | "La terminal está ocupada. Espera unos segundos e intenta de nuevo." |
+
+> Si tras cancelar o agotar tiempo **solo** llega `EMV_START_FAILED` sin ningún `10`/`11` ni texto en `mitIm30`, el mensaje genérico es una limitación del Bridge/SDK: conviene revisar `logs/emvbridge.log` o pedir al proveedor que distinga códigos en el JSON.
 
 ---
 
@@ -260,3 +262,9 @@ Devueltos en el campo `errorCode` o `mitIm30` de la respuesta.
 ## Logs del Bridge
 
 El Bridge escribe en `logs/emvbridge.log` junto al ejecutable, con rotación por tamaño. Revisar este archivo ante cualquier error de integración antes de escalar.
+
+---
+
+## Textos de UI en el kiosco (frontend)
+
+Los mensajes mostrados al usuario para errores de TPV, Bridge, MiTec y respuestas del backend FastAPI están centralizados en `app/ui/src/lib/im30ErrorCatalog.ts` (`IM30_PIN_PAD_UI`, `IM30_MITEC_PLATFORM_UI`, `IM30_BRIDGE_STRING_UI`, `IM30_BACKEND_API_CODE_UI`). Si actualizas las tablas de este documento, conviene reflejar el mismo criterio en ese archivo.

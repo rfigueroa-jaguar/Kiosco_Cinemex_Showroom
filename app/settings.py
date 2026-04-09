@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     cpi_client_secret: str = ""
     cpi_username: str = ""
     cpi_password: str = ""
+    # Ruta absoluta a PEM (cadena de confianza / CA del CPI) para que httpx verifique el HTTPS del CPI.
+    cpi_ca_bundle: str = ""
     # Solo desarrollo: omitir verificación de Root.cer en almacén Windows (no usar en kiosco).
     cpi_allow_without_root_verification: bool = False
 
