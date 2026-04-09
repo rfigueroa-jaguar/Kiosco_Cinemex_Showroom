@@ -90,6 +90,21 @@ export async function abandonTransaction(): Promise<ApiResult<{ ok: boolean }>> 
   return parse(r);
 }
 
+/** Envía al backend una línea de log con lo leído por el escáner (no bloquea la UI). */
+export function logScanAttempt(body: {
+  raw: string;
+  expected_transaction_id: string;
+  extracted_transaction_id: string | null;
+  ok: boolean;
+  codepoints_head?: number[];
+}): void {
+  void fetch(`${API_BASE}/api/scanner/scan-log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).catch(() => {});
+}
+
 export async function cashInitiate(): Promise<ApiResult<{ cpi_transaction_id: string }>> {
   const r = await fetch(`${API_BASE}/api/payment/cash/initiate`, {
     method: "POST",
@@ -107,6 +122,23 @@ export async function cashPoll(cpiTxId: string): Promise<ApiResult<Record<string
 export async function cashCancel(cpiTxId: string): Promise<ApiResult<unknown>> {
   const r = await fetch(`${API_BASE}/api/payment/cash/cancel/${encodeURIComponent(cpiTxId)}`, {
     method: "POST",
+  });
+  return parse(r);
+}
+
+export async function cashReconciliation(body: {
+  transaction_id: string;
+  cpi_transaction_id: string;
+  total_accepted: number;
+  total_dispensed: number;
+  expected_cents: number;
+  transaction_value?: number;
+  status?: string;
+}): Promise<ApiResult<{ coherent: boolean; net_cents: number; expected_cents: number }>> {
+  const r = await fetch(`${API_BASE}/api/payment/cash/reconciliation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
   return parse(r);
 }

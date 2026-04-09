@@ -32,6 +32,8 @@ export function CardPaymentScreen({ onApproved, onCancel }: Props) {
 
   const onApprovedRef = useRef(onApproved);
   onApprovedRef.current = onApproved;
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
 
   const applyResult = useCallback(async (r: ApiResult<Record<string, unknown>>, gen: number) => {
     if (gen !== cardSaleGeneration) return;
@@ -95,6 +97,11 @@ export function CardPaymentScreen({ onApproved, onCancel }: Props) {
     };
   }, [transactionId, setPaymentActive, applyResult]);
 
+  /** Solo abandona la UI; el Bridge no ofrece cancelación HTTP — la TPV puede seguir hasta timeout. */
+  const handleUserCancel = useCallback(() => {
+    onCancelRef.current();
+  }, []);
+
   const retry = useCallback(() => {
     if (!transactionId) return;
     cardSaleInFlight.delete(transactionId);
@@ -121,6 +128,9 @@ export function CardPaymentScreen({ onApproved, onCancel }: Props) {
           <>
             <Spinner size={50} />
             <p className="card-payment__hint">Acerca tu tarjeta a la terminal</p>
+            <Button minimal fill onClick={handleUserCancel}>
+              Cancelar
+            </Button>
           </>
         )}
         {err && (
@@ -133,7 +143,7 @@ export function CardPaymentScreen({ onApproved, onCancel }: Props) {
             <Button intent="primary" large fill onClick={() => retry()}>
               Reintentar
             </Button>
-            <Button minimal fill onClick={onCancel}>
+            <Button minimal fill onClick={handleUserCancel}>
               Cancelar
             </Button>
           </div>

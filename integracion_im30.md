@@ -72,6 +72,8 @@ El Bridge lee su configuración desde un archivo `.env` colocado junto a `EMVBri
 
 > ⚠️ El Bridge es un proceso externo — Electron **no lo gestiona**. Debe estar corriendo antes de que la app arranque. Si no responde en `/emv/health`, deshabilitar el método de pago con tarjeta y loggear el error.
 
+> ⚠️ **Cancelación de venta en curso:** el EMVBridge **no expone** un endpoint HTTP para abortar una operación `/emv/sale` desde el kiosco. Si el usuario sale de la pantalla de pago, la terminal puede seguir esperando tarjeta hasta **timeout** o **cancelación en la TPV física**. El backend no intenta llamadas de “cancel” al Bridge.
+
 ---
 
 ## Endpoints

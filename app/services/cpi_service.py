@@ -19,6 +19,7 @@ sin diagnóstico previo.
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import ssl
 import subprocess
@@ -288,6 +289,80 @@ class CPIService:
         r.raise_for_status()
         return r.json()
 
+    async def get_system_status_messages(self) -> list[dict[str, Any]]:
+        """GET /api/SystemStatus/Messages — alertas y errores del reciclador."""
+        r = await self._request("GET", "/api/SystemStatus/Messages")
+        if r.status_code >= 400:
+            return []
+        data = r.json()
+        if isinstance(data, list):
+            return data
+        return []
+
+    async def ensure_ready_for_transaction(self) -> dict[str, Any]:
+        """
+        Verifica el estado del reciclador antes de iniciar una transacción.
+        Flujo indicado por el proveedor:
+          OK / Warning      → listo para operar
+          Busy / Initializing → ocupado; reintentar más tarde
+          Error             → falla de hardware; consultar /Messages para detalle
+        Retorna {'ready': True} o {'ready': False, 'code': str, 'message': str, 'retry': bool}
+        """
+        try:
+            st = await self.get_system_status_raw()
+        except Exception as e:
+            return {
+                "ready": False,
+                "code": "CPI_UNREACHABLE",
+                "message": f"No se pudo contactar al reciclador: {e}",
+                "retry": False,
+            }
+
+        cs = st.get("currentStatus", "unknown")
+        _logger.debug("CPI SystemStatus.currentStatus=%s", cs)
+
+        if cs in ("OK", "Warning"):
+            return {"ready": True, "status": cs}
+
+        if cs in ("Busy", "Initializing"):
+            return {
+                "ready": False,
+                "code": "CPI_BUSY",
+                "message": "El reciclador está ocupado. Espera un momento e intenta de nuevo.",
+                "retry": True,
+            }
+
+        # Error u otro estado desconocido — obtener mensajes del hardware
+        messages: list[str] = []
+        try:
+            msgs = await self.get_system_status_messages()
+            for m in msgs:
+                text = (
+                    m.get("message")
+                    or m.get("description")
+                    or m.get("text")
+                    or m.get("Message")
+                    or m.get("Description")
+                )
+                if text:
+                    messages.append(str(text))
+        except Exception:
+            pass
+
+        detail = "; ".join(messages) if messages else ""
+        user_msg = (
+            f"El reciclador reportó un error: {detail}"
+            if detail
+            else "El reciclador reportó un estado de error. Avisa a un operador."
+        )
+        return {
+            "ready": False,
+            "code": "CPI_ERROR",
+            "message": user_msg,
+            "retry": False,
+            "status": cs,
+        }
+
     async def refresh_watchdog_state(self) -> None:
         if not self._ssl_ok:
             return
@@ -317,18 +392,40 @@ class CPIService:
         }
         r = await self._request("POST", "/api/Transactions", json=body)
         if r.status_code >= 400:
+            _logger.warning("CPI POST /api/Transactions HTTP %s — %s", r.status_code, r.text[:600])
             return {"error": True, "http": r.status_code, "body": r.text}
-        return r.json()
+        try:
+            data = r.json()
+        except Exception:
+            _logger.warning("CPI POST /api/Transactions — respuesta no JSON: %s", r.text[:600])
+            return {"error": True, "http": r.status_code, "body": r.text}
+        _logger.info("CPI POST /api/Transactions HTTP %s — %s", r.status_code, json.dumps(data))
+        return data
 
     async def get_transaction(self, tx_id: str) -> dict[str, Any]:
         r = await self._request("GET", f"/api/Transactions/{tx_id}")
         if r.status_code >= 400:
+            _logger.warning("CPI GET /api/Transactions/%s HTTP %s — %s", tx_id, r.status_code, r.text[:300])
             return {"error": True, "http": r.status_code, "body": r.text}
-        return r.json()
+        try:
+            data = r.json()
+        except Exception:
+            _logger.warning("CPI GET /api/Transactions/%s — respuesta no JSON: %s", tx_id, r.text[:300])
+            return {"error": True, "http": r.status_code, "body": r.text}
+        _logger.debug(
+            "CPI GET /api/Transactions/%s — status=%s accepted=%s dispensed=%s",
+            tx_id,
+            data.get("status", "?"),
+            data.get("totalAccepted", "?"),
+            data.get("totalDispensed", "?"),
+        )
+        return data
 
     async def cancel_transaction(self, tx_id: str) -> dict[str, Any]:
         r = await self._request("GET", f"/api/Transactions/action/{tx_id}/cancel")
+        _logger.info("CPI cancel /api/Transactions/action/%s/cancel HTTP %s", tx_id, r.status_code)
         if r.status_code >= 400:
+            _logger.warning("CPI cancel HTTP %s — %s", r.status_code, r.text[:300])
             return {"error": True, "http": r.status_code, "body": r.text}
         try:
             return r.json()

@@ -1,13 +1,15 @@
+import { Button } from "@blueprintjs/core";
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMotionConfig } from "@/hooks/useMotionConfig";
 import "./PaymentSuccessScreen.css";
 
 interface Props {
-  onContinue: () => void;
+  onScanQr: () => void;
+  onSkipToWelcome: () => void;
 }
 
-export function PaymentSuccessScreen({ onContinue }: Props) {
+export function PaymentSuccessScreen({ onScanQr, onSkipToWelcome }: Props) {
   const m = useMotionConfig();
   const [phase, setPhase] = useState<"anim" | "done">("anim");
 
@@ -18,14 +20,8 @@ export function PaymentSuccessScreen({ onContinue }: Props) {
         dx: (Math.random() - 0.5) * 140,
         dy: (Math.random() - 0.5) * 140,
       })),
-    []
+    [],
   );
-
-  useEffect(() => {
-    if (phase !== "done") return;
-    const t = window.setTimeout(onContinue, m.reduced ? 50 : 400);
-    return () => window.clearTimeout(t);
-  }, [phase, onContinue, m.reduced]);
 
   return (
     <div className="payment-success">
@@ -75,6 +71,16 @@ export function PaymentSuccessScreen({ onContinue }: Props) {
           ))}
         </div>
         <p className="payment-success__text">¡Pago recibido!</p>
+        {phase === "done" && (
+          <div className="payment-success__actions">
+            <Button intent="primary" large fill onClick={onScanQr}>
+              Escanear código
+            </Button>
+            <Button large fill minimal onClick={onSkipToWelcome}>
+              Ir al inicio sin escanear
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

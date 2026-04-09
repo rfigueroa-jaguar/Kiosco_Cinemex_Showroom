@@ -122,6 +122,8 @@ class PrinterService:
         total = float(payload.get("total", 0))
         method = str(payload.get("payment_method", ""))
         last4 = payload.get("last_four")
+        auth = payload.get("authorization") or payload.get("autorizacion")
+        voucher = payload.get("voucher")
 
         lines = [
             datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -150,6 +152,16 @@ class PrinterService:
             pay_line += f" ****{last4}"
         draw.text((15, y), pay_line, fill=0, font=font_reg)
         y += 28
+
+        if auth:
+            draw.text((15, y), f"Aut.: {str(auth)[:32]}", fill=0, font=font_reg)
+            y += 22
+        if voucher:
+            v = str(voucher).replace("\n", " ").strip()
+            if len(v) > 40:
+                v = v[:37] + "..."
+            draw.text((15, y), f"Voucher: {v}", fill=0, font=font_reg)
+            y += 22
 
         qr_img = generate_qr_image(tx_id)
         qx = (width - qr_img.width) // 2

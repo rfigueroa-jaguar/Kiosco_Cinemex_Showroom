@@ -139,23 +139,26 @@ Authorization: Bearer {access_token}
 
 ### Etapa 1 — Autenticación
 
-Obtener el Bearer Token como se describe en la sección 2. Incluirlo en todas las peticiones siguientes.
+Obtener el Bearer Token como se describe en la sección 2. Incluirlo en todas las peticiones siguientes. El token dura **1 hora**; el cliente HTTP reintenta automáticamente con nuevo token si recibe `401`.
 
-### Etapa 2 — Verificación del Estado del Sistema (Polling Preventivo)
+### Etapa 2 — Verificación del Estado del Sistema
 
-Antes de habilitar el botón de pago en la UI, confirmar que los equipos están operativos.
+Antes de iniciar la transacción, verificar que el reciclador esté operativo.
 
-- **Endpoint:** `GET /api/SystemStatus` cada ~200ms
+- **Endpoint:** `GET /api/SystemStatus`
+- **Implementado en:** `CPIService.ensure_ready_for_transaction()` → llamado desde `POST /api/payment/cash/initiate`
 
-| `currentStatus` | Acción en UI |
+| `currentStatus` | Acción |
 |---|---|
-| `OK` / `Warning` | Habilitar opción "Pago en Efectivo" |
-| `Busy` / `Initializing` | Mostrar "Espere..." |
-| `Error` | Deshabilitar pago; consultar `/api/SystemStatus/Messages` para informar al usuario |
+| `OK` / `Warning` | Proceder con `POST /api/Transactions` |
+| `Busy` / `Initializing` | Devolver error `CPI_BUSY` (reintentable) — UI muestra "Reintentar" |
+| `Error` / otro | Consultar `GET /api/SystemStatus/Messages` para detalle; devolver error `CPI_ERROR` |
+
+> ⚠️ El watchdog global (`HardwareWatchdog`) sondea `SystemStatus` cada 3 s para actualizar el banner de alertas en la UI. El pre-check antes de cada transacción es una verificación puntual adicional.
 
 ### Etapa 3 — Inicio de la Transacción
 
-Cuando el usuario confirma el pago, enviar la instrucción de cobro.
+Cuando el usuario confirma el pago, el backend envía la instrucción de cobro.
 
 **Endpoint:** `POST /api/Transactions`
 
@@ -163,37 +166,51 @@ Cuando el usuario confirma el pago, enviar la instrucción de cobro.
 {
   "currencyCode": "MXN",
   "transactionType": "Payment",
-  "value": 1000
+  "value": 38000
 }
 ```
 
-> ⚠️ `value` se envía en unidades mínimas (centavos). Ej: `1000` = $10.00 MXN.
+> ⚠️ `value` se envía en **centavos**. Ej: `38000` = $380.00 MXN.
 
-**Respuesta exitosa:** Objeto `TransactionDTO` con un `id` único y estado `InProgress`.
+**Respuesta:** `TransactionDTO` con los campos `Id` (PascalCase, API .NET) y `transactionStatus`.
+
+> ⚠️ **Campo de ID:** La API del CPI devuelve `Id` con mayúscula (convención .NET/C#). El backend lee `res.get("id") or res.get("Id")` para manejar ambos casos.
+
+**Verificación post-POST:**
+
+| `transactionStatus` | Acción |
+|---|---|
+| `InProgress` | Proceder al polling |
+| `NotStartedInsufficientChange` | Cancelar la transacción creada; devolver error `CPI_INSUFFICIENT_CHANGE` |
+| Otro valor | Cancelar la transacción creada; devolver error `CPI_TX_NOT_STARTED` (reintentable) |
 
 ### Etapa 4 — Monitoreo del Progreso (Polling de Transacción)
 
 Mientras el usuario inserta billetes y monedas, actualizar la UI en tiempo real.
 
-- **Endpoint:** `GET /api/Transactions/{id}` cada ~200ms
+- **Endpoint:** `GET /api/Transactions/{id}` cada **~300 ms**
 - **Campos a observar:**
-  - `totalAccepted` — dinero ingresado por el cliente hasta el momento
-  - `totalDispensed` — cambio que el sistema está devolviendo
+  - `totalAccepted` / `TotalAccepted` — dinero ingresado (centavos)
+  - `totalDispensed` / `TotalDispensed` — cambio que el sistema está devolviendo (centavos)
+  - `fixInstructionsUrl` — URL de instrucciones del fabricante si hay atasco
 
-**Cancelación por el usuario:** Si presiona "Cancelar" antes de completar el monto:
-```
-GET /api/Transactions/action/{id}/cancel
-```
+**Cancelación por el usuario:** `GET /api/Transactions/action/{id}/cancel`
 El sistema devuelve automáticamente el efectivo ingresado.
 
 ### Etapa 5 — Finalización y Cierre
 
-La transacción concluye cuando el hardware termina de dispensar el cambio y asegura el efectivo.
+1. Polling detecta `transactionStatus = "CompletedSuccess"`.
+2. Imprimir ticket (`POST /api/printer/print`).
+3. Llamar `POST /api/transaction/confirm` para limpiar el estado y publicar MQTT.
 
-1. Verificar que el estado en el polling cambie a `CompletedSuccess`.
-2. Validar que `totalAccepted` y `totalDispensed` sean correctos.
-3. Generar e imprimir el recibo.
-4. Cerrar la sesión de pago en la interfaz.
+### Estados fatales que detienen el polling
+
+| Estado | Código error UI | Descripción |
+|---|---|---|
+| `Error` / `Failed` | — | Error genérico del hardware |
+| `Cancelled` / `Canceled` | — | Transacción cancelada |
+| `NotStartedInsufficientChange` | `CPI_INSUFFICIENT_CHANGE` | Sin cambio disponible |
+| `Transaction_Stalled` / `Jammed` | — | Atasco físico — mostrar `fixInstructionsUrl` |
 
 ---
 

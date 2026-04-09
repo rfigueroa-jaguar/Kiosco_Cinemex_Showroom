@@ -7,6 +7,31 @@
   width: 100%;
 }
 
+.summary-dialog__th-image {
+  width: 72px;
+}
+
+.summary-dialog__td-image {
+  width: 72px;
+  vertical-align: middle;
+}
+
+.summary-dialog__thumb {
+  display: block;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: var(--color-background-secondary, #f5f8fa);
+}
+
+.summary-dialog__thumb--empty {
+  min-width: 56px;
+  min-height: 56px;
+  border: 1px dashed var(--color-text-tertiary, #abb3bf);
+  opacity: 0.5;
+}
+
 .summary-dialog__total {
   margin: var(--space-md) 0 0;
   font-size: 18px;

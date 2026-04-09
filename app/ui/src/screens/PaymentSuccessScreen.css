@@ -44,3 +44,11 @@
   margin: 0;
   color: var(--color-text-primary);
 }
+
+.payment-success__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: min(400px, 100%);
+  margin-top: var(--space-md);
+}

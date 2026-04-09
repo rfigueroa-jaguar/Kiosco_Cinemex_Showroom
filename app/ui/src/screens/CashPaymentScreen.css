@@ -42,3 +42,9 @@
 .cash-payment__bar {
   height: 10px !important;
 }
+
+.cash-payment__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}

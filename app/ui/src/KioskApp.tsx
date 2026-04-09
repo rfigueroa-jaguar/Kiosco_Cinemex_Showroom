@@ -88,6 +88,8 @@ export function KioskApp() {
       total: tx.amount,
       payment_method: tx.payment_method,
       last_four: tx.last_four ?? undefined,
+      authorization: tx.authorization ?? undefined,
+      voucher: tx.voucher ?? undefined,
     });
     if (!pr.success) {
       console.warn(pr.error);
@@ -202,25 +204,31 @@ export function KioskApp() {
   const onPickCash = useCallback(() => void startPaymentFlow("cash"), [startPaymentFlow]);
   const onPickCard = useCallback(() => void startPaymentFlow("card"), [startPaymentFlow]);
 
+  const onShowIdleModal = useCallback(() => setIdleModalOpen(true), []);
+
+  const onModalIdleTimeout = useCallback(() => {
+    setIdleModalOpen(false);
+    clearCart();
+    void abandonTransaction();
+    resetToWelcome();
+    setScreen("welcome");
+  }, [clearCart, resetToWelcome, setScreen]);
+
+  const onQrTimeout = useCallback(() => {
+    void abandonTransaction();
+    resetToWelcome();
+    setScreen("welcome");
+  }, [resetToWelcome, setScreen]);
+
   const { bumpActivity } = useInactivityTimer({
     screen,
     cartEmpty,
     paymentActive,
     modalOpen: idleModalOpen,
     onEmptyTimeout: goWelcome,
-    onShowModal: () => setIdleModalOpen(true),
-    onModalTimeout: () => {
-      setIdleModalOpen(false);
-      clearCart();
-      void abandonTransaction();
-      resetToWelcome();
-      setScreen("welcome");
-    },
-    onQrTimeout: () => {
-      void abandonTransaction();
-      resetToWelcome();
-      setScreen("welcome");
-    },
+    onShowModal: onShowIdleModal,
+    onModalTimeout: onModalIdleTimeout,
+    onQrTimeout,
   });
 
   useEffect(() => {
@@ -236,6 +244,30 @@ export function KioskApp() {
     resetToWelcome();
     setScreen("welcome");
   }, [clearCart, resetToWelcome, setScreen]);
+
+  const onPaymentSuccessScanQr = useCallback(() => {
+    setScreen("qr_scan");
+  }, [setScreen]);
+
+  const onPaymentSuccessSkipQr = useCallback(() => {
+    void (async () => {
+      await confirmTransaction();
+      clearCart();
+      resetToWelcome();
+      setScreen("welcome");
+    })();
+  }, [clearCart, resetToWelcome, setScreen]);
+
+  const onQrScanGoHome = useCallback(() => {
+    void abandonTransaction();
+    resetToWelcome();
+    setScreen("welcome");
+  }, [resetToWelcome, setScreen]);
+
+  const onIdleModalContinue = useCallback(() => {
+    setIdleModalOpen(false);
+    bumpActivity();
+  }, [bumpActivity]);
 
   const motionDuration = m.reduced ? 0.01 : 0.25;
 
@@ -302,7 +334,13 @@ export function KioskApp() {
           />
         );
       case "payment_success":
-        return <PaymentSuccessScreen key="success" onContinue={() => setScreen("qr_scan")} />;
+        return (
+          <PaymentSuccessScreen
+            key="success"
+            onScanQr={onPaymentSuccessScanQr}
+            onSkipToWelcome={onPaymentSuccessSkipQr}
+          />
+        );
       case "qr_scan":
         if (!activeTransaction) {
           return (
@@ -317,6 +355,7 @@ export function KioskApp() {
             expectedId={activeTransaction.transaction_id}
             transaction={activeTransaction}
             onValid={() => setSummaryOpen(true)}
+            onGoHome={onQrScanGoHome}
           />
         );
       default:
@@ -350,30 +389,16 @@ export function KioskApp() {
 
       <InactivityModal
         isOpen={idleModalOpen}
-        onContinue={() => {
-          setIdleModalOpen(false);
-          bumpActivity();
-        }}
-        onCancelPurchase={() => {
-          setIdleModalOpen(false);
-          clearCart();
-          void abandonTransaction();
-          resetToWelcome();
-          setScreen("welcome");
-        }}
-        onTimeout={() => {
-          setIdleModalOpen(false);
-          clearCart();
-          void abandonTransaction();
-          resetToWelcome();
-          setScreen("welcome");
-        }}
+        onContinue={onIdleModalContinue}
+        onCancelPurchase={onModalIdleTimeout}
+        onTimeout={onModalIdleTimeout}
       />
 
       {activeTransaction && (
         <SummaryModal
           isOpen={summaryOpen}
           transaction={activeTransaction}
+          products={products}
           onConfirm={() => void onConfirmSummary()}
         />
       )}

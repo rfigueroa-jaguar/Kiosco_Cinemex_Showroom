@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Annotated, Any
 
@@ -151,6 +152,30 @@ async def transaction_abandon(request: Request) -> dict[str, Any]:
     return {"success": True, "data": {"ok": True}}
 
 
+@router.post("/scanner/scan-log")
+async def scanner_scan_log(body: dict[str, Any]) -> dict[str, Any]:
+    """Registra en el log del servidor el texto crudo del lector (modo teclado / HID)."""
+    raw = body.get("raw")
+    if not isinstance(raw, str):
+        raw = ""
+    max_len = 800
+    snippet = raw if len(raw) <= max_len else f"{raw[:max_len]}…"
+    expected = body.get("expected_transaction_id")
+    extracted = body.get("extracted_transaction_id")
+    ok = body.get("ok")
+    codes = body.get("codepoints_head")
+    _logger.info(
+        "Lector QR/scan: válido=%s longitud=%s esperado=%s extraído=%s codepoints_inicio=%s raw_repr=%s",
+        ok,
+        len(raw),
+        expected,
+        extracted,
+        codes,
+        repr(snippet),
+    )
+    return {"success": True, "data": {"logged": True}}
+
+
 @router.post("/payment/cash/initiate")
 async def cash_initiate(
     request: Request,
@@ -163,6 +188,22 @@ async def cash_initiate(
     st = load_transaction(base, fn)
     if not st or st.payment_method != "cash":
         return {"success": False, "error": "Transacción efectivo no preparada", "code": "NO_CASH_TX"}
+
+    # Paso 1 del flujo: verificar estado del reciclador antes de iniciar
+    readiness = await cpi.ensure_ready_for_transaction()
+    if not readiness.get("ready"):
+        _logger.warning(
+            "CPI no listo para transacción — code=%s status=%s",
+            readiness.get("code"),
+            readiness.get("status", "?"),
+        )
+        return {
+            "success": False,
+            "error": readiness.get("message", "Reciclador no disponible"),
+            "code": readiness.get("code", "CPI_NOT_READY"),
+            "retry": readiness.get("retry", False),
+        }
+
     cents = int(round(float(st.amount) * 100))
     res = await cpi.start_transaction_cents(cents)
     if res.get("error"):
@@ -172,11 +213,84 @@ async def cash_initiate(
             "code": "CPI_START",
             "http": res.get("http"),
         }
-    cpi_id = str(res.get("id", ""))
+
+    # TransactionDTO usa 'transactionId' (camelCase). Fallbacks por si cambia la versión.
+    cpi_id = str(res.get("transactionId") or res.get("id") or res.get("Id") or "")
     if not cpi_id:
+        _logger.error("CPI respondió sin transactionId: %s", str(res)[:400])
         return {"success": False, "error": "CPI sin id de transacción", "code": "CPI_NO_ID"}
+
+    # TransactionDTO usa 'status' (camelCase).
+    tx_status = str(res.get("status") or res.get("transactionStatus") or res.get("TransactionStatus") or "")
+
+    if tx_status != "InProgress":
+        _logger.warning(
+            "CPI transacción creada id=%s pero status=%s (esperado InProgress) — cancelando",
+            cpi_id,
+            tx_status,
+        )
+        try:
+            await cpi.cancel_transaction(cpi_id)
+        except Exception:
+            _logger.exception("No se pudo cancelar transacción CPI id=%s tras estado inesperado", cpi_id)
+
+        # Mensajes diferenciados según el enum TransactionStatus del schema
+        _NO_CHANGE = {"NotStartedInsufficientChange", "InsufficientChange"}
+        _BUSY       = {"NotStartedBusy"}
+        _PROHIBITED = {"NotStartedProhibited", "NotStartedNotSupported"}
+        _DEVICES    = {"DevicesNotReady", "DeviceError", "ServiceStopped"}
+        _CURRENCY   = {"WrongCurrencyError", "NotStartedInsufficientAllowedCurrency"}
+
+        if tx_status in _NO_CHANGE:
+            return {
+                "success": False,
+                "error": (
+                    "El reciclador no tiene suficiente cambio disponible. "
+                    "Avisa a un operador para que reabastezca el equipo."
+                ),
+                "code": "CPI_INSUFFICIENT_CHANGE",
+                "retry": False,
+            }
+        if tx_status in _BUSY:
+            return {
+                "success": False,
+                "error": "El reciclador está ocupado con otra transacción. Espera un momento e intenta de nuevo.",
+                "code": "CPI_BUSY",
+                "retry": True,
+            }
+        if tx_status in _PROHIBITED:
+            return {
+                "success": False,
+                "error": "Este tipo de transacción no está permitido en este reciclador. Contacta a soporte.",
+                "code": "CPI_PROHIBITED",
+                "retry": False,
+            }
+        if tx_status in _DEVICES:
+            err_msg = str(res.get("errorMessage") or "")
+            return {
+                "success": False,
+                "error": f"Error en el dispositivo de pago: {err_msg}" if err_msg else "Error en el dispositivo de pago.",
+                "code": "CPI_DEVICE_ERROR",
+                "retry": False,
+            }
+        if tx_status in _CURRENCY:
+            return {
+                "success": False,
+                "error": "Moneda no permitida o cambio insuficiente para esta divisa.",
+                "code": "CPI_CURRENCY_ERROR",
+                "retry": False,
+            }
+        # Fallback para cualquier otro estado no-InProgress
+        return {
+            "success": False,
+            "error": f"La transacción no pudo iniciarse ({tx_status}). Intenta de nuevo.",
+            "code": "CPI_TX_NOT_STARTED",
+            "retry": True,
+        }
+
     st.cpi_transaction_id = cpi_id
     save_transaction(base, fn, st)
+    _logger.info("CPI transacción iniciada — transactionId=%s monto=%s centavos", cpi_id, cents)
     return {"success": True, "data": {"cpi_transaction_id": cpi_id, "cpi": res}}
 
 
@@ -207,6 +321,55 @@ async def cash_cancel(
         return {"success": False, "error": "CPI no disponible", "code": "CPI_SSL"}
     res = await cpi.cancel_transaction(cpi_tx_id)
     return {"success": True, "data": res}
+
+
+@router.post("/payment/cash/reconciliation")
+async def cash_reconciliation(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+    """
+    Tras CompletedSuccess: verifica que (totalAccepted - totalDispensed) coincida con el monto esperado.
+    Si no, registra ERROR en log con snapshot (alarma operativa); el flujo de la UI sigue igual.
+    """
+    base, fn = _tx_file(request)
+    st = load_transaction(base, fn)
+    if not st or st.payment_method != "cash":
+        return {"success": False, "error": "Transacción efectivo no activa", "code": "NO_CASH_TX"}
+
+    kiosk_tx_id = str(body.get("transaction_id") or st.transaction_id)
+    if kiosk_tx_id != st.transaction_id:
+        return {"success": False, "error": "transaction_id no coincide con la transacción activa", "code": "TX_MISMATCH"}
+
+    cpi_id = str(body.get("cpi_transaction_id") or st.cpi_transaction_id or "")
+    if not cpi_id:
+        return {"success": False, "error": "Sin cpi_transaction_id", "code": "NO_CPI_ID"}
+
+    ta = int(body.get("total_accepted", 0))
+    td = int(body.get("total_dispensed", 0))
+    expected = int(body.get("expected_cents", 0))
+    tv = body.get("transaction_value")
+    net = ta - td
+    coherent = abs(net - expected) <= 1
+
+    if not coherent:
+        snapshot = {
+            "kiosk_transaction_id": kiosk_tx_id,
+            "cpi_transaction_id": cpi_id,
+            "totalAccepted": ta,
+            "totalDispensed": td,
+            "net_cents": net,
+            "expected_cents": expected,
+            "transactionValue": tv,
+            "kiosk_amount_mx": st.amount,
+            "status": body.get("status"),
+        }
+        _logger.error(
+            "CPI reconciliación incoherente (neto retenido vs monto esperado): %s",
+            json.dumps(snapshot, default=str),
+        )
+
+    return {
+        "success": True,
+        "data": {"coherent": coherent, "net_cents": net, "expected_cents": expected},
+    }
 
 
 @router.post("/payment/card/sale")
@@ -270,6 +433,13 @@ async def printer_print(
     if last_four is None and st:
         last_four = st.last_four
 
+    authorization = body.get("authorization") or body.get("autorizacion")
+    if authorization is None and st:
+        authorization = st.authorization
+    voucher = body.get("voucher")
+    if voucher is None and st:
+        voucher = st.voucher
+
     serialized_items: list[dict[str, Any]] = []
     for i in raw_items:
         if isinstance(i, dict):
@@ -277,14 +447,19 @@ async def printer_print(
         else:
             serialized_items.append(i.model_dump())
 
-    payload = {
+    payload: dict[str, Any] = {
         "transaction_id": tx_id,
         "items": serialized_items,
         "total": total,
         "payment_method": method,
         "last_four": last_four,
     }
+    if authorization:
+        payload["authorization"] = str(authorization)
+    if voucher:
+        payload["voucher"] = str(voucher)
     try:
+        _logger.info("Imprimiendo ticket — transaction_id=%s (el QR codifica este mismo UUID en texto plano)", tx_id)
         printer.print_ticket(payload)
         return {"success": True, "data": {"printed": True}}
     except Exception as e:

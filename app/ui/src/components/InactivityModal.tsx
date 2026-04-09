@@ -17,6 +17,9 @@ export function InactivityModal({ isOpen, onContinue, onCancelPurchase, onTimeou
   const m = useMotionConfig();
   const [left, setLeft] = useState(SECONDS);
   const fired = useRef(false);
+  // Evita reiniciar el intervalo cuando el padre re-renderiza y pasa nuevas refs de función.
+  const onTimeoutRef = useRef(onTimeout);
+  onTimeoutRef.current = onTimeout;
 
   useEffect(() => {
     fired.current = false;
@@ -31,7 +34,7 @@ export function InactivityModal({ isOpen, onContinue, onCancelPurchase, onTimeou
           window.clearInterval(id);
           if (!fired.current) {
             fired.current = true;
-            onTimeout();
+            onTimeoutRef.current();
           }
           return 0;
         }
@@ -39,7 +42,7 @@ export function InactivityModal({ isOpen, onContinue, onCancelPurchase, onTimeou
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [isOpen, onTimeout]);
+  }, [isOpen]);
 
   return (
     <Dialog
