@@ -1,0 +1,63 @@
+:root {
+  color-scheme: light only;
+
+  --color-primary-red: #e53e3e;
+  --color-primary-blue: #3182ce;
+  --color-primary-green: #38a169;
+  --color-primary-purple: #805ad5;
+  --color-status-success: #38a169;
+  --color-status-warning: #dd6b20;
+  --color-status-danger: #e53e3e;
+  --color-status-info: #3182ce;
+  --color-text-primary: #1a202c;
+  --color-text-secondary: #4a5568;
+  --color-text-tertiary: #718096;
+  --color-border-light: #e2e8f0;
+  --color-border-medium: #cbd5e0;
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f7fafc;
+  --color-background-tertiary: #edf2f7;
+
+  --breakpoint-mobile: 480px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+  --breakpoint-large-desktop: 1440px;
+
+  --space-micro: 4px;
+  --space-xs: 6px;
+  --space-sm: 8px;
+  --space-regular: 12px;
+  --space-md: 16px;
+  --space-lg: 20px;
+  --space-xl: 24px;
+  --space-xxl: 30px;
+}
+
+/* Light mode only — desactivar dark de Blueprint */
+.bp4-dark,
+.bp5-dark,
+.bp6-dark {
+  color-scheme: light !important;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+}
+
+.app-root {
+  padding: var(--space-xl);
+}
+
+.app-root__title {
+  font-family: "Source Sans 3", "Source Sans Pro", sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0 0 var(--space-md);
+}

@@ -1,0 +1,11 @@
+inactivity_timeout_seconds: 60
+cart_modal_timeout_seconds: 60
+printer_name: "CUSTOM MODUS3 X"
+ticket_width_mm: 76
+cpi_polling_interval_ms: 200
+transaction_polling_interval_ms: 200
+watchdog_interval_seconds: 3
+transaction_state_filename: "transaction_state.json"
+# Subcadena a buscar en Subject/Issuer del almacén Root (Equipo local) tras instalar Root.cer del CPI.
+# Ver README / comentarios en cpi_service.py para ubicación de instalación del certificado.
+cpi_root_cert_subject_hint: "CPI"

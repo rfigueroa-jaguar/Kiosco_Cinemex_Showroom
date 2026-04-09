@@ -1,0 +1,16 @@
+.inactivity-dialog.bp6-dialog {
+  z-index: 99999;
+}
+
+.inactivity-dialog__msg {
+  margin: 0 0 var(--space-md);
+  color: var(--color-text-secondary);
+}
+
+.inactivity-dialog__counter {
+  font-family: "Source Sans 3", sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--color-primary-blue);
+}

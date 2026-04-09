@@ -1,0 +1,11 @@
+[
+  { "id": "P001", "name": "Palomitas Chicas", "price": 55.0, "image": "palomitas_ch.png", "category": "Palomitas" },
+  { "id": "P002", "name": "Palomitas Medianas", "price": 75.0, "image": "palomitas_md.png", "category": "Palomitas" },
+  { "id": "P003", "name": "Palomitas Grandes", "price": 95.0, "image": "palomitas_gr.png", "category": "Palomitas" },
+  { "id": "P004", "name": "Refresco Chico", "price": 45.0, "image": "refresco_ch.png", "category": "Bebidas" },
+  { "id": "P005", "name": "Refresco Grande", "price": 65.0, "image": "refresco_gr.png", "category": "Bebidas" },
+  { "id": "P006", "name": "Agua Embotellada", "price": 35.0, "image": "agua.png", "category": "Bebidas" },
+  { "id": "P007", "name": "Nachos con Queso", "price": 70.0, "image": "nachos.png", "category": "Snacks" },
+  { "id": "P008", "name": "Hot Dog", "price": 75.0, "image": "hotdog.png", "category": "Snacks" },
+  { "id": "P009", "name": "Chocolate", "price": 40.0, "image": "chocolate.png", "category": "Snacks" }
+]

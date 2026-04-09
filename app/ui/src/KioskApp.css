@@ -1,0 +1,17 @@
+.kiosk-app {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+.kiosk-app__stage {
+  min-height: 100vh;
+}
+
+.kiosk-app__center {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+}

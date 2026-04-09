@@ -1,0 +1,18 @@
+.summary-dialog.bp6-dialog {
+  z-index: 99999;
+  width: min(640px, 95vw);
+}
+
+.summary-dialog__table {
+  width: 100%;
+}
+
+.summary-dialog__total {
+  margin: var(--space-md) 0 0;
+  font-size: 18px;
+}
+
+.summary-dialog__pay {
+  margin: var(--space-sm) 0 0;
+  color: var(--color-text-secondary);
+}

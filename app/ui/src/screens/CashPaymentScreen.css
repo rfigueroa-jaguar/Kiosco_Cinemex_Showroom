@@ -1,0 +1,44 @@
+.cash-payment {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+  background: var(--color-background-secondary);
+}
+
+.cash-payment__panel {
+  width: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.cash-payment__title {
+  font-family: "Source Sans 3", sans-serif;
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cash-payment__subtitle {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.cash-payment__msg {
+  margin: 0;
+  min-height: 1.5em;
+}
+
+.cash-payment__stats {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.cash-payment__bar {
+  height: 10px !important;
+}

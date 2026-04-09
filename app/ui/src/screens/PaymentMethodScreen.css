@@ -1,0 +1,30 @@
+.payment-method {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+  background: var(--color-background-secondary);
+}
+
+.payment-method__card {
+  width: min(520px, 100%);
+  padding: var(--space-xl);
+}
+
+.payment-method__title {
+  font-family: "Source Sans 3", sans-serif;
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 var(--space-md);
+}
+
+.payment-method__callout {
+  margin-bottom: var(--space-md);
+}
+
+.payment-method__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}

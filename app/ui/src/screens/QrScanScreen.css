@@ -1,0 +1,32 @@
+.qr-scan {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+  background: var(--color-background-primary);
+}
+
+.qr-scan__panel {
+  max-width: 560px;
+  text-align: center;
+}
+
+.qr-scan__title {
+  font-family: "Source Sans 3", sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  margin: 0 0 var(--space-md);
+}
+
+.qr-scan__hint {
+  color: var(--color-text-secondary);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.qr-scan__meta {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin: var(--space-md) 0;
+}

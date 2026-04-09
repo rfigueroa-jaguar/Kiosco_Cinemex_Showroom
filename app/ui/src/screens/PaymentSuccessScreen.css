@@ -1,0 +1,46 @@
+.payment-success {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-background-secondary);
+}
+
+.payment-success__inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.payment-success__check {
+  width: 120px;
+  height: 120px;
+  overflow: visible;
+}
+
+.payment-success__burst {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  left: 50%;
+  top: 40%;
+  pointer-events: none;
+}
+
+.payment-success__particle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary-blue);
+}
+
+.payment-success__text {
+  font-family: "Source Sans 3", sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text-primary);
+}
