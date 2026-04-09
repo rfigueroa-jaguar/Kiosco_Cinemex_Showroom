@@ -1,4 +1,4 @@
-import { NonIdealState, Spinner } from "@blueprintjs/core";
+import { Callout, NonIdealState, Spinner } from "@blueprintjs/core";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { InactivityModal } from "@/components/InactivityModal";
@@ -15,6 +15,7 @@ import {
   printTicket,
   setTransactionStep,
   type CatalogProduct,
+  type ServiceSnapshot,
   type TransactionPayload,
 } from "@/services/api";
 import { CardPaymentScreen } from "@/screens/CardPaymentScreen";
@@ -24,13 +25,26 @@ import { PaymentMethodScreen } from "@/screens/PaymentMethodScreen";
 import { PaymentSuccessScreen } from "@/screens/PaymentSuccessScreen";
 import { QrScanScreen } from "@/screens/QrScanScreen";
 import { WelcomeScreen } from "@/screens/WelcomeScreen";
-import { cartTotal, useKioskStore } from "@/store/kioskStore";
+import { cartTotal, useKioskStore, type KioskState } from "@/store/kioskStore";
 import "./KioskApp.css";
 
 type RecoveryPayload = {
   action: string;
   transaction?: TransactionPayload;
 };
+
+function servicesFromApi(raw: Record<string, ServiceSnapshot>): KioskState["services"] {
+  const pick = (x: ServiceSnapshot | undefined, statusFallback: string) => ({
+    available: x?.available ?? false,
+    status: x?.status ?? statusFallback,
+    ...(x?.message ? { message: x.message } : {}),
+  });
+  return {
+    cpi: pick(raw.cpi, "unknown"),
+    im30: pick(raw.im30, "unknown"),
+    printer: pick(raw.printer, "unknown"),
+  };
+}
 
 export function KioskApp() {
   const m = useMotionConfig();
@@ -46,8 +60,9 @@ export function KioskApp() {
   const setCatalogLoaded = useKioskStore((s) => s.setCatalogLoaded);
   const setBootError = useKioskStore((s) => s.setBootError);
   const bootError = useKioskStore((s) => s.bootError);
-  const cpiAvail = useKioskStore((s) => s.services.cpi.available);
-  const im30Avail = useKioskStore((s) => s.services.im30.available);
+  const services = useKioskStore((s) => s.services);
+  const cpiAvail = services.cpi.available;
+  const im30Avail = services.im30.available;
 
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [booting, setBooting] = useState(true);
@@ -114,7 +129,7 @@ export function KioskApp() {
         setBooting(false);
         return;
       }
-      setServices(st.data.services);
+      setServices(servicesFromApi(st.data.services));
       const rec = st.data.recovery as RecoveryPayload | null | undefined;
       if (!cat.success || !cat.data?.items?.length) {
         setBootError(cat.success === false ? cat.error || "Catálogo vacío" : "Catálogo vacío");
@@ -140,6 +155,25 @@ export function KioskApp() {
       cancelled = true;
     };
   }, [handleRecoveryPrint, setActiveTransaction, setBootError, setCatalogLoaded, setScreen, setServices]);
+
+  useEffect(() => {
+    if (booting || bootError) return;
+    const id = window.setInterval(() => {
+      void getStatus().then((res) => {
+        if (res.success) setServices(servicesFromApi(res.data.services));
+      });
+    }, 10_000);
+    return () => window.clearInterval(id);
+  }, [booting, bootError, setServices]);
+
+  const hardwareAlertLines = useMemo(() => {
+    const lines: string[] = [];
+    for (const key of ["cpi", "im30", "printer"] as const) {
+      const svc = services[key];
+      if (!svc.available && svc.message) lines.push(svc.message);
+    }
+    return lines;
+  }, [services]);
 
   const onPay = useCallback(() => {
     setIdleModalOpen(false);
@@ -210,12 +244,14 @@ export function KioskApp() {
       <PaymentMethodScreen
         cpiAvailable={cpiAvail}
         im30Available={im30Avail}
+        cpiDetail={services.cpi.message}
+        im30Detail={services.im30.message}
         onCash={onPickCash}
         onCard={onPickCard}
         onBack={() => setScreen("catalog")}
       />
     ),
-    [cpiAvail, im30Avail, onPickCash, onPickCard, setScreen]
+    [cpiAvail, im30Avail, onPickCash, onPickCard, services.cpi.message, services.im30.message, setScreen]
   );
 
   const screenNode = (() => {
@@ -290,6 +326,15 @@ export function KioskApp() {
 
   return (
     <div className="kiosk-app">
+      {hardwareAlertLines.length > 0 && !booting && !bootError && (
+        <div className="kiosk-app__banner">
+          <Callout intent="warning" icon="warning-sign">
+            {hardwareAlertLines.map((line, i) => (
+              <div key={`${i}-${line.slice(0, 24)}`}>{line}</div>
+            ))}
+          </Callout>
+        </div>
+      )}
       <AnimatePresence mode="wait">
         <motion.div
           key={screen}

@@ -203,6 +203,8 @@ app/
 └── pyproject.toml
 ```
 
+En **desarrollo**, puede existir además `app/.venv/` (entorno virtual Python recomendado para aislar dependencias); no se versiona. Creación y uso: [GUIA_PRUEBAS.md](GUIA_PRUEBAS.md) §2.2 y [app/README.md](app/README.md).
+
 ---
 
 ## 6. Configuración y Variables de Entorno
@@ -227,9 +229,9 @@ IM30_USER=
 IM30_PASSWORD=
 EMV_BRIDGE_TOKEN=
 
-# PYTHON_PATH: ruta absoluta al intérprete Python en el kiosco.
-# Electron usa esta variable para lanzar main.py como proceso hijo.
-# Ejemplo Windows: C:\Python311\python.exe
+# PYTHON_PATH: ruta absoluta al intérprete Python que ejecuta main.py (Electron spawn).
+# Kiosco / producción — ejemplo: C:\Python311\python.exe
+# Desarrollo con .venv en app/ — ejemplo: C:\ruta\al\proyecto\KIOSCO-CINEMEX\app\.venv\Scripts\python.exe
 PYTHON_PATH=
 
 MQTT_BROKER_URL=

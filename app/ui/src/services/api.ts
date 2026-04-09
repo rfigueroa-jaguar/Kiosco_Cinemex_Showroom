@@ -9,8 +9,10 @@ async function parse<T>(res: Response): Promise<ApiResult<T>> {
   return j as ApiResult<T>;
 }
 
+export type ServiceSnapshot = { available: boolean; status: string; message?: string };
+
 export async function getStatus(): Promise<ApiResult<{
-  services: Record<string, { available: boolean; status: string }>;
+  services: Record<string, ServiceSnapshot>;
   recovery: unknown;
 }>> {
   const r = await fetch(`${API_BASE}/api/status`);

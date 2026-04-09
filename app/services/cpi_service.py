@@ -28,6 +28,19 @@ from settings import Settings
 
 _logger = logging.getLogger("kiosco.cpi")
 
+MSG_CPI_NO_CREDS = (
+    "Pago en efectivo no disponible: faltan credenciales del servicio CPI en la configuración del equipo."
+)
+MSG_CPI_NO_HOST = "Pago en efectivo no disponible: no hay host CPI configurado (CPI_HOST)."
+MSG_CPI_ROOT = (
+    "Pago en efectivo no disponible: falta instalar o confiar el certificado raíz CPI (Root.cer) en Windows."
+)
+MSG_CPI_UNREACHABLE = "Pago en efectivo no disponible: no se puede conectar al servicio CPI en la red."
+MSG_CPI_RETRY_EXHAUSTED = (
+    "Pago en efectivo no disponible: el servicio no respondió tras varios intentos. Revise red, CPI y credenciales."
+)
+MSG_CPI_HARDWARE_ERROR = "Pago en efectivo no disponible: el reciclador CPI reportó un estado de error."
+
 
 def verify_cpi_root_cert_trusted(subject_hint: str) -> tuple[bool, str]:
     """
@@ -80,10 +93,21 @@ class CPIService:
         self._client: httpx.AsyncClient | None = None
         self._ssl_ok = False
         self._ssl_message = ""
+        self._watchdog_failures = 0
 
     @property
     def ssl_configured(self) -> bool:
         return self._ssl_ok
+
+    def _credentials_complete(self) -> bool:
+        s = self._settings
+        return bool(s.cpi_client_id and s.cpi_client_secret and s.cpi_username and s.cpi_password)
+
+    def _set_cpi_state(self, available: bool, status: str, message: str | None = None) -> None:
+        entry: dict[str, Any] = {"available": available, "status": status}
+        if message:
+            entry["message"] = message
+        app_state["services"]["cpi"] = entry
 
     async def startup_check(self) -> None:
         """Antes de cualquier llamada HTTPS: verificar confianza del Root.cer (PRD + requisito usuario)."""
@@ -99,32 +123,35 @@ class CPIService:
             self._ssl_message = msg
             if not ok:
                 _logger.warning("CPI no disponible: %s", msg)
-                app_state["services"]["cpi"] = {"available": False, "status": "root_cert_missing"}
+                self._set_cpi_state(False, "root_cert_missing", MSG_CPI_ROOT)
                 return
 
         if not self._host:
             _logger.warning("CPI_HOST vacío")
-            app_state["services"]["cpi"] = {"available": False, "status": "no_host"}
+            self._set_cpi_state(False, "no_host", MSG_CPI_NO_HOST)
+            return
+
+        if not self._credentials_complete():
+            _logger.warning("CPI: credenciales incompletas — no se iniciará cliente HTTP hasta configurar .env")
+            self._set_cpi_state(False, "no_credentials", MSG_CPI_NO_CREDS)
             return
 
         self._client = httpx.AsyncClient(base_url=self._base, verify=True, timeout=30.0)
         try:
             st = await self.get_system_status_raw()
-            app_state["services"]["cpi"] = {
-                "available": True,
-                "status": st.get("currentStatus", "unknown"),
-            }
+            self._watchdog_failures = 0
+            cs = st.get("currentStatus", "unknown")
+            avail = cs not in ("Error",)
+            self._set_cpi_state(avail, cs, None if avail else MSG_CPI_HARDWARE_ERROR)
         except Exception as e:
+            self._watchdog_failures = 1
             _logger.warning("CPI no respondió en arranque: %s", e)
-            app_state["services"]["cpi"] = {"available": False, "status": "unreachable"}
+            self._set_cpi_state(False, "unreachable", MSG_CPI_UNREACHABLE)
 
     async def shutdown(self) -> None:
         if self._client:
             await self._client.aclose()
             self._client = None
-
-    def _mark_unavailable(self, status: str) -> None:
-        app_state["services"]["cpi"] = {"available": False, "status": status}
 
     async def _ensure_token(self) -> None:
         if self._token:
@@ -198,16 +225,25 @@ class CPIService:
         return r.json()
 
     async def refresh_watchdog_state(self) -> None:
-        if not self._client or not self._ssl_ok:
+        if not self._ssl_ok:
+            return
+        if not self._credentials_complete():
+            self._set_cpi_state(False, "no_credentials", MSG_CPI_NO_CREDS)
+            return
+        if not self._client:
             return
         try:
             st = await self.get_system_status_raw()
+            self._watchdog_failures = 0
             cs = st.get("currentStatus", "unknown")
             avail = cs not in ("Error",)
-            app_state["services"]["cpi"] = {"available": avail, "status": cs}
-        except Exception:
-            _logger.exception("Watchdog CPI falló")
-            self._mark_unavailable("watchdog_error")
+            self._set_cpi_state(avail, cs, None if avail else MSG_CPI_HARDWARE_ERROR)
+        except Exception as e:
+            self._watchdog_failures = min(self._watchdog_failures + 1, 1_000)
+            user_msg = MSG_CPI_RETRY_EXHAUSTED if self._watchdog_failures >= 3 else MSG_CPI_UNREACHABLE
+            if self._watchdog_failures <= 3:
+                _logger.warning("Watchdog CPI intento %s/3 falló: %s", self._watchdog_failures, e)
+            self._set_cpi_state(False, "unreachable", user_msg)
 
     async def start_transaction_cents(self, value_cents: int) -> dict[str, Any]:
         body = {

@@ -19,6 +19,8 @@ La impresora opera en Windows mediante el sistema nativo de impresión. El flujo
 pip install pillow pywin32 qrcode
 ```
 
+> En el monorepo del kiosco, suele bastar `pip install -e .` desde `app/` con el **`.venv` activado**; ese comando ya incluye estas dependencias (ver `app/pyproject.toml` y `GUIA_PRUEBAS.md` §2.2).
+
 | Librería | Uso |
 |---|---|
 | `PIL` (Pillow) | Generar y manipular la imagen del ticket |

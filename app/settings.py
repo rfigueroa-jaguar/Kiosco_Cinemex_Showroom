@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from pydantic import ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 APP_DIR = Path(__file__).resolve().parent
@@ -34,6 +35,14 @@ class Settings(BaseSettings):
     mqtt_username: str = ""
     mqtt_password: str = ""
     mqtt_topic_base: str = ""
+
+    @field_validator("cpi_port", "im30_port", "mqtt_port", mode="before")
+    @classmethod
+    def empty_env_port_uses_default(cls, v: object, info: ValidationInfo) -> object:
+        if v == "" or v is None:
+            defaults = {"cpi_port": 5000, "im30_port": 6000, "mqtt_port": 1883}
+            return defaults[info.field_name]
+        return v
 
 
 def load_settings() -> Settings:

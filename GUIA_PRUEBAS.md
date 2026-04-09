@@ -19,13 +19,80 @@ Documento para verificar que la aplicación funciona y cumple los requisitos del
 | Ítem | Notas |
 |------|--------|
 | **SO** | Windows 11 (kiosco). |
-| **Python** | 3.11+ recomendado; dependencias en `app/pyproject.toml`. |
+| **Python** | 3.11+ recomendado; dependencias en `app/pyproject.toml`. **Recomendado:** entorno virtual `app/.venv` (ver §2.2). |
 | **Node.js + npm** | Para `app/ui` (Vite, Electron en desarrollo). |
-| **Archivo `app/.env`** | Copiar desde `app/.env.example` y completar CPI, IM30, `PYTHON_PATH` según entorno. |
+| **Archivo `app/.env`** | Copiar desde `app/.env.example` y completar CPI, IM30, `PYTHON_PATH` según entorno (en desarrollo con `.venv`, ruta absoluta a `app\.venv\Scripts\python.exe`; ver §2.2). |
 | **CPI Payment Service** | HTTPS en `{CPI_HOST}:5000`; **Root.cer** en almacén raíz del equipo (ver PRD §3.5 y `app/README.md`). |
 | **EMVBridge (IM30)** | En ejecución en `http://{IM30_HOST}:{IM30_PORT}` (típico puerto **6000**). |
 | **Impresora** | `CUSTOM MODUS3 X` instalada en Windows (nombre según `config/prod.yaml`). |
 | **Lector QR** | Zebra SE2707 en modo HID (teclado). |
+
+### 2.1 Instalación de Python y Node.js (si no están en el equipo)
+
+Aplica cuando prepares **banco de pruebas** o desarrollo local. En el kiosco con solo el **`.exe` empaquetado** no necesitas Node.js; sí necesitas un intérprete **Python** coherente con `PYTHON_PATH` en `.env` si el instalador lo exige (ver `app/README.md` y PRD §3.4).
+
+**Python 3.11 o superior** (`app/pyproject.toml` exige `>=3.11`):
+
+1. Descarga el instalador desde [python.org/downloads](https://www.python.org/downloads/) (elige 3.11.x o 3.12.x).
+2. En el primer paso del instalador, marca **Add python.exe to PATH** y completa la instalación.
+3. Abre una **nueva** ventana de PowerShell y comprueba:
+
+```powershell
+python --version
+# Si el comando anterior no existe, prueba:
+py -3.11 --version
+```
+
+**Node.js (incluye npm)** — necesario para `npm install`, `npm run dev` y builds de `app/ui/`:
+
+1. Instala la versión **LTS** desde [nodejs.org](https://nodejs.org/).
+2. Cierra y vuelve a abrir PowerShell y comprueba:
+
+```powershell
+node -v
+npm -v
+```
+
+Si tras instalar alguno de los dos los comandos no se reconocen, reinicia la sesión de Windows o el equipo y vuelve a probar.
+
+### 2.2 Entorno virtual Python (`.venv` en `app/`)
+
+Evita conflictos con otros proyectos usando un virtualenv **dentro de** `app/` (el directorio ya está en `.gitignore` como `.venv/`).
+
+1. Abre PowerShell y ve a `app/`:
+
+```powershell
+cd "ruta\al\proyecto\KIOSCO-CINEMEX\app"
+```
+
+2. Crea el entorno (una sola vez por máquina o tras borrar `.venv`):
+
+```powershell
+python -m venv .venv
+# alternativa si usas el launcher: py -3.11 -m venv .venv
+```
+
+3. Actívalo **en cada terminal** donde vayas a usar `pip` o el servidor (`python -m uvicorn`):
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Si PowerShell bloquea el script, ejecuta una vez: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` y vuelve a intentar.
+
+4. Instala dependencias del backend (elige una opción):
+
+```powershell
+pip install -e .
+# alternativa equivalente en dependencias (sin empaquetar el proyecto):
+# pip install -r requirements.txt
+```
+
+5. Para **Electron en desarrollo**, en `app/.env` define `PYTHON_PATH` con la **ruta absoluta** al intérprete del venv, por ejemplo:
+
+`C:\Users\tu_usuario\...\KIOSCO-CINEMEX\app\.venv\Scripts\python.exe`
+
+Así el proceso principal de Electron lanzará el mismo Python que usas en consola.
 
 **Desarrollo sin todo el hardware:** puedes validar UI, catálogo, inactividad y pantallas de error; CPI/IM30/impresora fallarán de forma controlada si no están configurados.
 
@@ -35,14 +102,19 @@ Documento para verificar que la aplicación funciona y cumple los requisitos del
 
 ### 3.1 Backend (FastAPI)
 
-Desde el directorio `app/`:
+Desde el directorio `app/`, con el **`.venv` creado y activado** (§2.2) — si aún no instalaste dependencias, `pip install -e .` una vez con el venv activo:
 
 ```powershell
 cd "ruta\al\proyecto\KIOSCO-CINEMEX\app"
+.\.venv\Scripts\Activate.ps1
 pip install -e .
-# o instalar manualmente fastapi uvicorn httpx pyyaml pydantic-settings python-dotenv pillow qrcode[pil] pywin32
-uvicorn main:app --host 127.0.0.1 --port 8000
+# o: pip install -r requirements.txt
+python -m uvicorn main:app --host 127.0.0.1 --port 8000
 ```
+
+Sin `.venv` (no recomendado): los mismos comandos usando el `python`/`pip` global del sistema.
+
+**Si PowerShell dice `Acceso denegado` al ejecutar `uvicorn`:** en Windows a veces el `.exe` en `.venv\Scripts\uvicorn.exe` queda bloqueado (Defender, carpeta sincronizada con OneDrive/SharePoint, o políticas del equipo). Usa siempre **`python -m uvicorn ...`** como arriba; no invoca el `.exe` del `Scripts`.
 
 **Esperado:** consola sin traceback; en logs del día (`app/logs/YYYY-MM-DD.log`) al menos líneas `INFO` de arranque.
 

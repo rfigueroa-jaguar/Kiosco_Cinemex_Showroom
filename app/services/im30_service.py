@@ -13,6 +13,14 @@ from settings import Settings
 
 _logger = logging.getLogger("kiosco.im30")
 
+MSG_IM30_UNREACHABLE = (
+    "Pago con tarjeta no disponible: no hay conexión con el puente EMV (EMVBridge) en este equipo."
+)
+MSG_IM30_RETRY_EXHAUSTED = (
+    "Pago con tarjeta no disponible: el puente EMV no respondió tras varios intentos. Compruebe que EMVBridge esté en ejecución."
+)
+MSG_IM30_BAD_HEALTH = "Pago con tarjeta no disponible: la terminal o el puente EMV reportaron un estado anómalo."
+
 
 class IM30Service:
     def __init__(self, settings: Settings) -> None:
@@ -22,19 +30,28 @@ class IM30Service:
         self._base = f"http://{host}:{port}"
         self._client: httpx.AsyncClient | None = None
         self._sale_lock = asyncio.Lock()
+        self._watchdog_failures = 0
+
+    def _set_im30_state(self, available: bool, status: str, message: str | None = None) -> None:
+        entry: dict[str, Any] = {"available": available, "status": status}
+        if message:
+            entry["message"] = message
+        app_state["services"]["im30"] = entry
 
     async def startup_check(self) -> None:
         self._client = httpx.AsyncClient(base_url=self._base, timeout=120.0)
         try:
             h = await self.health_raw()
+            self._watchdog_failures = 0
             ok = h.get("status") == "ok"
-            app_state["services"]["im30"] = {
-                "available": ok,
-                "status": "ok" if ok else "bad_health",
-            }
+            if ok:
+                self._set_im30_state(True, "ok")
+            else:
+                self._set_im30_state(False, "bad_health", MSG_IM30_BAD_HEALTH)
         except Exception as e:
+            self._watchdog_failures = 1
             _logger.warning("IM30 no responde en arranque: %s", e)
-            app_state["services"]["im30"] = {"available": False, "status": "unreachable"}
+            self._set_im30_state(False, "unreachable", MSG_IM30_UNREACHABLE)
 
     async def shutdown(self) -> None:
         if self._client:
@@ -59,14 +76,18 @@ class IM30Service:
             return
         try:
             h = await self.health_raw()
+            self._watchdog_failures = 0
             ok = h.get("status") == "ok" and h.get("listener") is True
-            app_state["services"]["im30"] = {
-                "available": ok,
-                "status": "ok" if ok else "degraded",
-            }
-        except Exception:
-            _logger.exception("Watchdog IM30 falló")
-            app_state["services"]["im30"] = {"available": False, "status": "watchdog_error"}
+            if ok:
+                self._set_im30_state(True, "ok")
+            else:
+                self._set_im30_state(False, "degraded", MSG_IM30_BAD_HEALTH)
+        except Exception as e:
+            self._watchdog_failures = min(self._watchdog_failures + 1, 1_000)
+            user_msg = MSG_IM30_RETRY_EXHAUSTED if self._watchdog_failures >= 3 else MSG_IM30_UNREACHABLE
+            if self._watchdog_failures <= 3:
+                _logger.warning("Watchdog IM30 intento %s/3 falló: %s", self._watchdog_failures, e)
+            self._set_im30_state(False, "unreachable", user_msg)
 
     async def ensure_logged_in(self) -> tuple[bool, str]:
         """

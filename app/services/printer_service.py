@@ -15,6 +15,11 @@ from core.state import app_state
 
 _logger = logging.getLogger("kiosco.printer")
 
+MSG_PRINTER_MISSING = (
+    "Impresión de ticket no disponible: no se encontró la impresora configurada en este equipo Windows."
+)
+MSG_PRINTER_NON_WINDOWS = "Impresión de ticket no disponible: el backend no está ejecutándose en Windows."
+
 if sys.platform == "win32":
     import win32con
     import win32print
@@ -57,13 +62,22 @@ class PrinterService:
     async def startup_check(self) -> None:
         if sys.platform != "win32":
             _logger.info("Impresora: no Windows — marcada como no disponible")
-            app_state["services"]["printer"] = {"available": False, "status": "non_windows"}
+            app_state["services"]["printer"] = {
+                "available": False,
+                "status": "non_windows",
+                "message": MSG_PRINTER_NON_WINDOWS,
+            }
             return
         ok = check_printer_available(self._printer_name)
-        app_state["services"]["printer"] = {
-            "available": ok,
-            "status": "ok" if ok else "not_found",
-        }
+        app_state["services"]["printer"] = (
+            {"available": True, "status": "ok"}
+            if ok
+            else {
+                "available": False,
+                "status": "not_found",
+                "message": MSG_PRINTER_MISSING,
+            }
+        )
         if not ok:
             _logger.warning('Impresora "%s" no encontrada en el sistema', self._printer_name)
 
@@ -71,10 +85,11 @@ class PrinterService:
         if sys.platform != "win32":
             return
         ok = check_printer_available(self._printer_name)
-        app_state["services"]["printer"] = {
-            "available": ok,
-            "status": "ok" if ok else "not_found",
-        }
+        app_state["services"]["printer"] = (
+            {"available": True, "status": "ok"}
+            if ok
+            else {"available": False, "status": "not_found", "message": MSG_PRINTER_MISSING}
+        )
 
     def build_ticket_image(self, payload: dict[str, Any]) -> Image.Image:
         width = 384

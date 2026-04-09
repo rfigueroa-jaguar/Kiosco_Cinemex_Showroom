@@ -6,6 +6,8 @@ import "./PaymentMethodScreen.css";
 interface Props {
   cpiAvailable: boolean;
   im30Available: boolean;
+  cpiDetail?: string;
+  im30Detail?: string;
   onCash: () => void;
   onCard: () => void;
   onBack: () => void;
@@ -14,6 +16,8 @@ interface Props {
 export function PaymentMethodScreen({
   cpiAvailable,
   im30Available,
+  cpiDetail,
+  im30Detail,
   onCash,
   onCard,
   onBack,
@@ -26,12 +30,12 @@ export function PaymentMethodScreen({
         <h2 className="payment-method__title">Método de pago</h2>
         {!cpiAvailable && (
           <Callout intent="warning" title="Pago en efectivo no disponible" className="payment-method__callout">
-            El servicio de reciclado no está disponible en este momento.
+            {cpiDetail ?? "El servicio de reciclado no está disponible en este momento."}
           </Callout>
         )}
         {!im30Available && (
           <Callout intent="warning" title="Pago con tarjeta no disponible" className="payment-method__callout">
-            La terminal no responde. Usa otro método o intenta más tarde.
+            {im30Detail ?? "La terminal no responde. Usa otro método o intenta más tarde."}
           </Callout>
         )}
         <div className="payment-method__actions">

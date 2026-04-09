@@ -13,9 +13,11 @@ export type Screen =
 export interface ServiceInfo {
   available: boolean;
   status: string;
+  /** Texto para mostrar al usuario cuando el servicio no está disponible */
+  message?: string;
 }
 
-interface KioskState {
+export interface KioskState {
   screen: Screen;
   cart: CartLine[];
   services: {

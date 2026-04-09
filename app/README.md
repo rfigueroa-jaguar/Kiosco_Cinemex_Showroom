@@ -11,27 +11,44 @@ La subcadena buscada en Subject/Issuer se configura en `config/prod.yaml` (`cpi_
 
 En **desarrollo** puede definirse `CPI_ALLOW_WITHOUT_ROOT_VERIFICATION=true` en `.env` (no usar en el kiosco de producción).
 
+## Entorno virtual (recomendado)
+
+Para aislar dependencias del resto del sistema, use un `.venv` en este directorio (`app/`). La carpeta `.venv/` está ignorada por Git.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+```
+
+- **Alternativa sin instalación editable:** `pip install -r requirements.txt` (solo dependencias; sigue ejecutando el servidor con `cd` en `app/`).
+- **Primera vez:** crear el venv y ejecutar `pip install -e .` con el entorno activado (recomendado; el `pyproject.toml` ya excluye `ui/` y `config/` del empaquetado Python).
+- **Electron en desarrollo:** en `.env`, asigne `PYTHON_PATH` a la ruta absoluta de `.\.venv\Scripts\python.exe` para que el proceso principal use el mismo intérprete.
+- **Kiosco / producción:** `PYTHON_PATH` suele apuntar al Python instalado en el equipo (no al `.venv` del repo), según despliegue.
+
 ## Arranque del backend
 
-Desde este directorio (`app/`):
+Desde este directorio (`app/`), con el entorno virtual **activado**:
 
-```bash
-pip install -e .
-uvicorn main:app --host 127.0.0.1 --port 8000
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn main:app --host 127.0.0.1 --port 8000
 ```
+
+En Windows, si `uvicorn` directo da **Acceso denegado**, use siempre `python -m uvicorn` (evita ejecutar `Scripts\uvicorn.exe`, a menudo bloqueado por antivirus o carpetas sincronizadas).
 
 ## Electron
 
 En `ui/`, con el backend ya corriendo en desarrollo:
 
-```bash
+```powershell
 npm install
 npm run dev
 ```
 
 En otra terminal, con `VITE_DEV_SERVER_URL=http://localhost:5173`:
 
-```bash
+```powershell
 npm run electron:dev
 ```
 

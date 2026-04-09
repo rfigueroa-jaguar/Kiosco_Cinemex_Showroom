@@ -4,6 +4,13 @@
   overflow: hidden;
 }
 
+.kiosk-app__banner {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: var(--space-sm) var(--space-md);
+}
+
 .kiosk-app__stage {
   min-height: 100vh;
 }
