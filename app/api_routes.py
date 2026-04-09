@@ -230,12 +230,27 @@ async def card_sale(
     )
     out = await im30.sale(referencia, monto_terminal)
     if not out.get("success"):
+        err_payload = out.get("error", "")
+        # Si el payload de error es un dict (body del Bridge), no convertir con str()
+        # porque produce repr de Python no parseable. Se deja en details; error queda
+        # como string vacío para que im30MessageFromApiFail use el catálogo de código.
+        err_str = err_payload if isinstance(err_payload, str) else ""
+        _logger.warning(
+            "IM30 venta fallida — code=%s | %s",
+            out.get("code"),
+            str(out)[:400],
+        )
         return {
             "success": False,
-            "error": str(out.get("error", "Error")),
+            "error": err_str,
             "code": str(out.get("code", "CARD_ERROR")),
             "details": out,
         }
+    _logger.info(
+        "IM30 venta Bridge completada — referencia=%s respuesta=%s",
+        referencia,
+        (out.get("data") or {}).get("respuesta", "?"),
+    )
     return {"success": True, "data": out.get("data")}
 
 

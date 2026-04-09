@@ -163,7 +163,10 @@ class IM30Service:
                 json={"referencia": referencia, "monto": float(monto)},
             )
 
+            log_prefix = f"IM30 /emv/sale HTTP {r.status_code}"
+
             if r.status_code == 409:
+                _logger.warning("%s — Terminal ocupada (EMV_BUSY)", log_prefix)
                 return {
                     "success": False,
                     "error": "Terminal ocupada. Intente de nuevo.",
@@ -171,6 +174,7 @@ class IM30Service:
                 }
 
             if r.status_code >= 400:
+                _logger.warning("%s — error Bridge: %s", log_prefix, r.text[:600])
                 try:
                     data = r.json()
                 except Exception:
@@ -183,6 +187,15 @@ class IM30Service:
                 }
 
             try:
-                return {"success": True, "data": r.json()}
+                data = r.json()
+                respuesta = data.get("respuesta", "?")
+                _logger.info(
+                    "%s — respuesta=%s | %s",
+                    log_prefix,
+                    respuesta,
+                    str(data)[:500],
+                )
+                return {"success": True, "data": data}
             except Exception:
+                _logger.warning("%s — JSON inválido: %s", log_prefix, r.text[:300])
                 return {"success": False, "error": r.text, "code": "IM30_BAD_JSON"}
