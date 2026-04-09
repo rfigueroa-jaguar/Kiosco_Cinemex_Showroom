@@ -1,5 +1,6 @@
 inactivity_timeout_seconds: 60
 cart_modal_timeout_seconds: 60
+# Si THERMAL_PRINTER_NAME en .env está vacío, se usa este nombre (debe coincidir con Windows).
 printer_name: "CUSTOM MODUS3 X"
 ticket_width_mm: 76
 cpi_polling_interval_ms: 200

@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     mqtt_password: str = ""
     mqtt_topic_base: str = ""
 
+    # Nombre exacto de la impresora en Windows (Panel de control). Vacío → usa prod.yaml / valor por defecto.
+    thermal_printer_name: str = ""
+
     @field_validator("cpi_port", "im30_port", "mqtt_port", mode="before")
     @classmethod
     def empty_env_port_uses_default(cls, v: object, info: ValidationInfo) -> object:

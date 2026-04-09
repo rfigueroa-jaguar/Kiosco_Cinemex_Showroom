@@ -88,9 +88,14 @@ async def lifespan(app: FastAPI):
     cpi = CPIService(settings, subject_hint)
     im30 = IM30Service(settings)
     logo = app_dir / "config" / "logo.png"
+    printer_display_name = settings.thermal_printer_name.strip() or str(
+        prod.get("printer_name", "CUSTOM MODUS3 X")
+    )
+    ticket_width_mm = float(prod.get("ticket_width_mm", 76))
     printer = PrinterService(
-        str(prod.get("printer_name", "CUSTOM MODUS3 X")),
+        printer_display_name,
         logo_path=logo if logo.is_file() else None,
+        ticket_width_mm=ticket_width_mm,
     )
 
     app.state.app_dir = app_dir
