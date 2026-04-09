@@ -6,6 +6,8 @@ cpi_polling_interval_ms: 200
 transaction_polling_interval_ms: 200
 watchdog_interval_seconds: 3
 transaction_state_filename: "transaction_state.json"
+# Cobro real en la TPV IM30 (MXN). El ticket y el estado de transacción siguen usando el total del carrito.
+card_terminal_charge_amount_mx: 0.10
 # Subcadena a buscar en Subject/Issuer del almacén Root (Equipo local) tras instalar Root.cer del CPI.
 # Ver README / comentarios en cpi_service.py para ubicación de instalación del certificado.
 cpi_root_cert_subject_hint: "CPI"

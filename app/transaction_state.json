@@ -1,8 +1,8 @@
 {
-  "transaction_id": "ea8c3249-5e43-4036-bd46-7e6b6bad0402",
+  "transaction_id": "24b074e5-644a-43b8-b08d-0bf9441c99da",
   "status": "in_progress",
   "payment_method": "card",
-  "amount": 190.0,
+  "amount": 340.0,
   "step": "waiting_payment",
   "items": [
     {
@@ -10,9 +10,15 @@
       "name": "Palomitas Grandes",
       "qty": 2,
       "price": 95.0
+    },
+    {
+      "id": "P002",
+      "name": "Palomitas Medianas",
+      "qty": 2,
+      "price": 75.0
     }
   ],
-  "timestamp": "2026-04-09T17:18:09+00:00",
+  "timestamp": "2026-04-09T17:42:58+00:00",
   "cpi_transaction_id": null,
   "last_four": null,
   "authorization": null,

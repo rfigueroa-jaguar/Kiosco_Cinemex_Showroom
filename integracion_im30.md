@@ -208,6 +208,15 @@ Continuar al flujo de impresión de ticket
 | `404` | `NOT_FOUND` | Ruta incorrecta | Error interno — loggear |
 | `500` | `INTERNAL_ERROR` | Error no controlado en el Bridge | Loggear y notificar al operador |
 
+### `errorCode` en string (cuerpo JSON, a veces HTTP 200)
+
+Algunas respuestas de `/emv/sale` incluyen `errorCode` como texto (no solo códigos numéricos MiTec). El kiosco muestra mensajes legibles para los siguientes:
+
+| `errorCode` | Causa típica | Mensaje en UI del kiosco |
+|---|---|---|
+| `EMV_START_FAILED` | El SDK / Bridge no pudo iniciar la operación en la TPV (USB, estado del lector, sesión EMV, etc.) | "No se pudo iniciar el cobro en la terminal. Comprueba que la TPV esté encendida, conectada y lista; luego intenta de nuevo." |
+| `EMV_BUSY` | Terminal ocupada (equivalente lógico al HTTP 409 en algunos flujos) | "La terminal está ocupada. Espera unos segundos e intenta de nuevo." |
+
 ---
 
 ## Catálogo de Errores — Plataforma MiTec (General)
@@ -235,8 +244,8 @@ Devueltos en el campo `errorCode` o `mitIm30` de la respuesta.
 |---|---|---|
 | `01` | Banda o chip dañados | "No pudimos leer tu tarjeta. Intenta con otra." |
 | `03` | Terminal desconectada / sin respuesta | "Terminal no disponible. Llama a soporte." |
-| `10` | Usuario canceló en la terminal (botón rojo) | "Operación cancelada." — ofrecer reintentar |
-| `11` | Timeout — venció el tiempo para insertar la tarjeta | "Tiempo agotado. ¿Deseas intentarlo de nuevo?" |
+| `10` | Cancelación desde TPV (botón rojo u opción cancelar en terminal) | "Operación cancelada en la terminal." *(mensaje mostrado en el kiosco cuando `errorCode` es `10`)* |
+| `11` | Timeout en TPV (tiempo agotado para tarjeta u operación) | "Tiempo agotado en la terminal. Puedes intentar de nuevo." *(mensaje mostrado en el kiosco cuando `errorCode` es `11`)* |
 | `14` | Error de PIN en la terminal | "Error al procesar el PIN. Intenta de nuevo." |
 | `15` | Tarjeta vencida | "Tu tarjeta está vencida. Usa otra." |
 | `17` | Impresora sin papel | Notificar al operador — no bloquear el flujo |

@@ -292,7 +292,7 @@ export function KioskApp() {
       case "card_payment":
         return (
           <CardPaymentScreen
-            key="card"
+            key={activeTransaction?.transaction_id ?? "card"}
             onApproved={() => void handleCardApproved()}
             onCancel={() => {
               void abandonTransaction();

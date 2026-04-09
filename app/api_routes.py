@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from core.state import app_state
 from services.cpi_service import CPIService
@@ -220,8 +220,15 @@ async def card_sale(
     if not st or st.payment_method != "card":
         return {"success": False, "error": "Transacción tarjeta no preparada", "code": "NO_CARD_TX"}
     referencia = str(body.get("referencia") or st.transaction_id)
-    monto = float(body.get("monto", st.amount))
-    out = await im30.sale(referencia, monto)
+    cfg = request.app.state.prod_config
+    monto_terminal = float(cfg.get("card_terminal_charge_amount_mx", 0.10))
+    _logger.info(
+        "IM30 /sale referencia=%s monto_terminal=%s MXN (total carrito en estado=%s)",
+        referencia,
+        monto_terminal,
+        st.amount,
+    )
+    out = await im30.sale(referencia, monto_terminal)
     if not out.get("success"):
         return {
             "success": False,
