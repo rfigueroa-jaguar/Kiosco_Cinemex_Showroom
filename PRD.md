@@ -3,7 +3,7 @@
 > **Versión:** 1.1  
 > **Desarrollador:** Rudy  
 > **Fecha objetivo:** 24 de Abril  
-> **SO:** Windows 10  
+> **SO:** Windows 11  
 > **Tipo:** Demo standalone — desde cero  
 > **Integración MQTT/RedFox:** ⏳ Diferida (pendiente de definición de payloads; ver §15)  
 > **Notas v1.1:** Reglas de implementación acordadas (CPI SSL, token, IM30, polling UI, ErrorBoundary) y **modelo unificado Watchdog vs Task Scheduler** en §3.5, §11, §13 y §16.

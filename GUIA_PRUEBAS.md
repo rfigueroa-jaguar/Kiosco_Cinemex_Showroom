@@ -18,7 +18,7 @@ Documento para verificar que la aplicación funciona y cumple los requisitos del
 
 | Ítem | Notas |
 |------|--------|
-| **SO** | Windows 10 (kiosco). |
+| **SO** | Windows 11 (kiosco). |
 | **Python** | 3.11+ recomendado; dependencias en `app/pyproject.toml`. |
 | **Node.js + npm** | Para `app/ui` (Vite, Electron en desarrollo). |
 | **Archivo `app/.env`** | Copiar desde `app/.env.example` y completar CPI, IM30, `PYTHON_PATH` según entorno. |
