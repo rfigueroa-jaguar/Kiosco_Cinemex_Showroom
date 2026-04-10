@@ -109,7 +109,7 @@ cd "ruta\al\proyecto\KIOSCO-CINEMEX\app"
 .\.venv\Scripts\Activate.ps1
 pip install -e .
 # o: pip install -r requirements.txt
-python -m uvicorn main:app --host 127.0.0.1 --port 8000
+python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Sin `.venv` (no recomendado): los mismos comandos usando el `python`/`pip` global del sistema.

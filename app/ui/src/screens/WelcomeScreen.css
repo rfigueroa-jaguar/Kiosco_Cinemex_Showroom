@@ -14,8 +14,8 @@
 }
 
 .welcome-screen__logo {
-  width: 160px;
-  height: 160px;
+  width: 220px;
+  height: 220px;
   margin: 0 auto var(--space-lg);
   border-radius: 8px;
   background: linear-gradient(135deg, var(--color-primary-blue), var(--color-primary-purple));
@@ -23,14 +23,14 @@
 
 .welcome-screen__title {
   font-family: "Source Sans 3", "Source Sans Pro", sans-serif;
-  font-size: 28px;
+  font-size: 42px;
   font-weight: 600;
   color: var(--color-text-primary);
   margin: 0;
 }
 
 .welcome-screen__cta.bp6-button {
-  min-height: 52px;
-  font-size: 18px;
-  padding: 0 var(--space-xl);
+  min-height: 72px;
+  font-size: 30px;
+  padding: 0 44px;
 }

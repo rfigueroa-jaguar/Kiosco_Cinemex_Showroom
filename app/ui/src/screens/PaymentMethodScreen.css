@@ -8,23 +8,33 @@
 }
 
 .payment-method__card {
-  width: min(520px, 100%);
+  width: min(760px, 100%);
   padding: var(--space-xl);
 }
 
 .payment-method__title {
   font-family: "Source Sans 3", sans-serif;
-  font-size: 24px;
+  font-size: 38px;
   font-weight: 600;
   margin: 0 0 var(--space-md);
 }
 
 .payment-method__callout {
   margin-bottom: var(--space-md);
+  font-size: 20px;
+}
+
+.payment-method__callout .bp6-callout-title {
+  font-size: 24px;
 }
 
 .payment-method__actions {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+}
+
+.payment-method__actions .bp6-button {
+  min-height: 64px;
+  font-size: 28px;
 }

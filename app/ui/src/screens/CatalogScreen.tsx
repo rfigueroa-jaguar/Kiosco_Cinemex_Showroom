@@ -1,6 +1,6 @@
-import { Button, Card, Tag } from "@blueprintjs/core";
+import { Button, Card, Classes, Dialog, Tag } from "@blueprintjs/core";
 import { motion } from "framer-motion";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMotionConfig } from "@/hooks/useMotionConfig";
 import type { CatalogProduct } from "@/services/api";
 import { cartTotal, useKioskStore } from "@/store/kioskStore";
@@ -13,6 +13,7 @@ interface Props {
 
 export function CatalogScreen({ products, onPay }: Props) {
   const m = useMotionConfig();
+  const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const cart = useKioskStore((s) => s.cart);
   const addToCart = useKioskStore((s) => s.addToCart);
   const decFromCart = useKioskStore((s) => s.decFromCart);
@@ -68,7 +69,7 @@ export function CatalogScreen({ products, onPay }: Props) {
                               <Button
                                 icon="minus"
                                 minimal
-                                small
+                                className="catalog-screen__qty-btn"
                                 aria-label="Quitar"
                                 onClick={() => decFromCart(p.id)}
                                 disabled={qty === 0}
@@ -79,7 +80,7 @@ export function CatalogScreen({ products, onPay }: Props) {
                               <Button
                                 icon="plus"
                                 minimal
-                                small
+                                className="catalog-screen__qty-btn"
                                 aria-label="Agregar"
                                 onClick={() => addToCart(p.id, p.name, p.price)}
                               />
@@ -94,7 +95,7 @@ export function CatalogScreen({ products, onPay }: Props) {
             </section>
           ))}
         </div>
-        <aside className="catalog-screen__cart">
+        <aside className="catalog-screen__cart" onClick={() => setIsCartModalOpen(true)} role="button" tabIndex={0}>
           <Card className="catalog-screen__cart-card" elevation={1}>
             <h3 className="catalog-screen__cart-title">Tu carrito</h3>
             <ul className="catalog-screen__cart-list">
@@ -120,7 +121,7 @@ export function CatalogScreen({ products, onPay }: Props) {
               </motion.span>
             </div>
             <div className="catalog-screen__cart-actions">
-              <motion.div whileTap={{ scale: m.reduced ? 1 : 0.96 }}>
+              <motion.div whileTap={{ scale: m.reduced ? 1 : 0.96 }} onClick={(e) => e.stopPropagation()}>
                 <Button
                   fill
                   intent="danger"
@@ -131,7 +132,11 @@ export function CatalogScreen({ products, onPay }: Props) {
                   Vaciar carrito
                 </Button>
               </motion.div>
-              <motion.div whileHover={{ scale: m.reduced ? 1 : 1.02 }} whileTap={{ scale: m.reduced ? 1 : 0.96 }}>
+              <motion.div
+                whileHover={{ scale: m.reduced ? 1 : 1.02 }}
+                whileTap={{ scale: m.reduced ? 1 : 0.96 }}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <Button fill large intent="primary" disabled={cart.length === 0} onClick={onPay}>
                   Pagar
                 </Button>
@@ -140,6 +145,44 @@ export function CatalogScreen({ products, onPay }: Props) {
           </Card>
         </aside>
       </div>
+      <Dialog isOpen={isCartModalOpen} onClose={() => setIsCartModalOpen(false)} title="Resumen del carrito">
+        <div className={Classes.DIALOG_BODY}>
+          {cart.length === 0 ? (
+            <p className="catalog-screen__modal-empty">Tu carrito está vacío.</p>
+          ) : (
+            <ul className="catalog-screen__modal-list">
+              {cart.map((l) => (
+                <li key={l.id} className="catalog-screen__modal-line">
+                  <span>
+                    {l.qty}× {l.name}
+                  </span>
+                  <span>${(l.price * l.qty).toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="catalog-screen__modal-total-row">
+            <span>Total</span>
+            <strong>${total.toFixed(2)}</strong>
+          </div>
+        </div>
+        <div className={Classes.DIALOG_FOOTER}>
+          <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+            <Button onClick={() => setIsCartModalOpen(false)}>Cerrar</Button>
+            <Button
+              intent="primary"
+              large
+              disabled={cart.length === 0}
+              onClick={() => {
+                setIsCartModalOpen(false);
+                onPay();
+              }}
+            >
+              Pagar
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

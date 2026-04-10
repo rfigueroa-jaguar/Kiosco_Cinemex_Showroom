@@ -189,9 +189,32 @@ class PrinterService:
                 draw.text((xm, y), auth_line, fill=0, font=font_reg)
                 y += line_height
         if voucher:
-            v = str(voucher).replace("\n", " ").strip()
-            for v_line in textwrap.wrap(f"Voucher: {v}", width=32, break_long_words=True):
+            raw = str(voucher).splitlines()
+            head = raw[:2]
+            truncated = len(raw) > 2
+
+            visual: list[str] = []
+            first_print = True
+            for physical_line in head:
+                s = physical_line.strip()
+                if not s:
+                    continue
+                chunk = f"Voucher: {s}" if first_print else s
+                first_print = False
+                wraps = textwrap.wrap(chunk, width=32, break_long_words=True)
+                for wline in wraps:
+                    if len(visual) >= 2:
+                        truncated = True
+                        break
+                    visual.append(wline)
+                if len(visual) >= 2:
+                    break
+
+            for v_line in visual:
                 draw.text((xm, y), v_line, fill=0, font=font_reg)
+                y += line_height
+            if truncated:
+                draw.text((xm, y), "...", fill=0, font=font_reg)
                 y += line_height
 
         y += int(10 * qs)
